@@ -1,1 +1,54 @@
+trigger:
+  - main
 
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  pythonVersion: '3.12'
+
+stages:
+
+- stage: Build
+  displayName: 'Build Application'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+      displayName: 'Set up Python'
+
+    - script: |
+        python -m compileall src
+      displayName: 'Compile Python application'
+
+- stage: Test
+  displayName: 'Run Tests'
+  dependsOn: Build
+  jobs:
+  - job: TestJob
+    displayName: 'Test'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+
+    - script: |
+        python -m unittest discover -s tests -v
+      displayName: 'Run unit tests'
+
+- stage: Publish
+  displayName: 'Publish Build Artifact'
+  dependsOn: Test
+  jobs:
+  - job: PublishJob
+    displayName: 'Publish Artifact'
+    steps:
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)'
+        ArtifactName: 'application'
+        publishLocation: 'Container'
+      displayName: 'Publish application artifact'
