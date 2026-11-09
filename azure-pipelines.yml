@@ -13,12 +13,10 @@ stages:
   displayName: 'Build Application'
   jobs:
   - job: BuildJob
-    displayName: 'Build'
     steps:
     - task: UsePythonVersion@0
       inputs:
         versionSpec: '$(pythonVersion)'
-      displayName: 'Set up Python'
 
     - script: |
         python -m compileall src
@@ -29,7 +27,6 @@ stages:
   dependsOn: Build
   jobs:
   - job: TestJob
-    displayName: 'Test'
     steps:
     - task: UsePythonVersion@0
       inputs:
@@ -44,11 +41,47 @@ stages:
   dependsOn: Test
   jobs:
   - job: PublishJob
-    displayName: 'Publish Artifact'
     steps:
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(Build.SourcesDirectory)'
         ArtifactName: 'application'
         publishLocation: 'Container'
-      displayName: 'Publish application artifact'
+
+- stage: Deploy
+  displayName: 'Deploy to Test Environment'
+  dependsOn: Publish
+  jobs:
+  - job: DeployJob
+    steps:
+    - task: DownloadBuildArtifacts@1
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: 'application'
+        downloadPath: '$(Pipeline.Workspace)'
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+
+    - script: |
+        set -e
+
+        echo "Starting deployment to test environment..."
+
+        mkdir -p "$(Pipeline.Workspace)/test-environment"
+
+        cp -R "$(Pipeline.Workspace)/application/." \
+          "$(Pipeline.Workspace)/test-environment/"
+
+        echo "Starting application..."
+
+        APP_OUTPUT=$(python "$(Pipeline.Workspace)/test-environment/src/app.py")
+
+        echo "$APP_OUTPUT"
+
+        echo "$APP_OUTPUT" | grep -q "healthy"
+
+        echo "Deployment verification successful!"
+      displayName: 'Deploy and verify application'
